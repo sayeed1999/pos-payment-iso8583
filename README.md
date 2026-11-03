@@ -1,109 +1,37 @@
-# titp-poc: card payment + reversal over ISO 8583 (Go, moov-io/iso8583)
+# POS payment PoC
 
-A host (acquirer side) that receives ISO 8583 over TCP, and a mock chip-card terminal that sends it. Scope: the **purchase** journey and the **reversal** journey when something goes wrong. Nothing else.
-
-```
-cmd/server                         listen on :8583
-cmd/posmock                        fake terminal: runs the journeys
-internal/handlers/iso8583          TCP session: read a frame, check fields, call the use case, write the answer
-internal/handlers/iso8583/spec     moov spec + which DEs each message carries (only package that imports moov-io/iso8583)
-internal/application               purchase and reversal, host and terminal
-internal/domain                    authorise, track 2, issuer auth data
-internal/domain/emv                DE 55 TLV
-internal/domain/pin                ISO-0 PIN block (demo 3DES key)
-internal/infrastructure            2-byte TCP length header
-```
-
-## Run it
+Two processes. The terminal sends ISO 8583 over TCP. The host answers.
 
 ```bash
-go get github.com/moov-io/iso8583@latest
-go mod tidy
 go test ./...
-
-go run ./cmd/server                 # terminal 1, listens on :8583
-go run ./cmd/posmock                # terminal 2, runs every journey
-go run ./cmd/posmock -list          # list journeys; -scenario reply-lost runs one
-go run ./cmd/posmock -profile       # print the field table below
+go run ./cmd/host
+go run ./cmd/pos-terminal
+go run ./cmd/pos-terminal -amount 5600
+go run ./cmd/pos-terminal -amount 9600
+go run ./cmd/pos-terminal -void
+go run ./cmd/pos-terminal -amount 500
+go run ./cmd/pos-terminal -reverse -amount 400
 ```
 
-Add `-raw` to either command to also print each frame as it goes on the socket (length header in hex, then the payload as text; card data is **unmasked**).
+`-amount` is minor units. `100000` is approved (0210 RC 00). `5600` is RC 56. `9600` is RC 96. `500` makes the host stay silent, and the terminal then sends a 0400. `-void` purchases, then sends a void (0200, processing code `020000`). `-reverse` purchases, then sends a 0400, and sends that same 0400 again if the host stays silent. Amount `400` is what makes the host stay silent on the first reversal.
 
-## The journeys
+Void uses processing code `020000`. In ISO 8583 the transaction type `02` is an adjustment. POS hosts use that as a void of a purchase. A refund is type `20`.
 
-| Journey | What happens on the wire |
-|---|---|
-| `approved` | 0200 → 0210 RC 00. Done. |
-| `declined`, `wrong-pin` | 0200 → 0210 RC 05 / 55. Nothing was authorised, so **no reversal**. |
-| `reply-lost` | Host approves, the 0210 never arrives. Terminal times out, sends **0400** (no DE 37, it never saw an RRN) → 0410 RC 00. Host releases the hold. |
-| `request-lost` | The 0200 never reaches the host. Terminal can't tell this from a lost reply, so it sends the same **0400**. Host has nothing to undo but still answers 0410 RC 00. |
-| `card-refuses-after-approval` | 0210 RC 00 arrives, then the chip declines at the 2nd GENERATE AC. Terminal sends **0400 with DE 37** (it knows the RRN) → 0410 RC 00. |
+RC 56 is what this PoC calls insufficient funds. The ISO 8583 standard uses 51 for that.
 
-`RC` in that table is not part of the message. See [Response code](#response-code) below.
+Each host connection runs in its own goroutine. A panic is recovered and does not stop the listener or other connections. A connection pool is out of scope.
 
-Reversal rules the code follows: new STAN, DE 90 points at the original (original MTI + STAN + DE 7 + two 11-digit institution IDs, zero-filled by the terminal), the host always accepts a reversal and a repeated one gets the same answer.
+Logs carry `correlation_id` for one request inside a process. STAN is the id that appears on both sides of the socket.
 
-## Response code
+```
+cmd/host
+cmd/pos-terminal
+config
+internal/transport/iso8583          TCP frames, parse, handler, client
+internal/transport/iso8583/spec     moov Spec87ASCII
+internal/application/transaction    purchase, void, reversal
+internal/infrastructure             terminal and merchant records, logs
+internal/domain                     processing codes, response codes
+```
 
-ISO 8583 does not include the keyword `RC`. A reply on the wire is an MTI (`0210` or `0410`), a bitmap, and field values. The response code is **DE 39**: exactly two characters, with no name beside them. An approval is the characters `00` in DE 39.
-
-This README and the logs write `0210 RC 00` as shorthand for "purchase response, DE 39 = `00`". `posmock` prints the same shorthand in its journey result. A field dump prints `DE 039` and `"00"`. The letters `RC` never go on the socket.
-
-`00` and `05` are two different codes. There is no response code `00 05`.
-
-| DE 39 | Meaning in this host |
-|---|---|
-| `00` | Approved. The purchase was authorised, or the reversal was accepted. |
-| `05` | Do not honour. The issuer refused the card. Nothing was authorised, so the terminal sends no reversal. Test PAN `4000000000000002`. |
-| `55` | Incorrect PIN. Any PIN other than `1234`. Nothing was authorised, so no reversal. |
-| `14` | Invalid card number (fails the Luhn check). |
-| `54` | Expired card. |
-| `13` | Invalid amount (zero or negative). |
-| `30` | Format error. The host sends this when a required field is missing. |
-
-Two other fields look similar and are not DE 39:
-
-- **DE 22 = `051`** is how the card was read: `05` means chip, the last digit `1` means a PIN pad is present. It is on the request, not the reply.
-- **DE 25 = `00`** means normal presentment (the cardholder is here). It is also on the request.
-
-## Fields actually sent
-
-Generated by `posmock -profile` from the same code the host validates with. The terminal refuses to send a message that breaks it; the host answers `30` for a missing required field and logs a warning for an unexpected one.
-
-| Message | Required DEs (always sent) | Optional DEs (only when applicable) |
-|---|---|---|
-| 0200 Purchase request (chip) | 3, 4, 7, 11, 12, 13, 22, 23, 25, 35, 41, 42, 49, 55 | 52 |
-| 0210 Purchase response, approved | 3, 4, 7, 11, 12, 13, 37, 38, 39, 41, 42, 49 | 55 |
-| 0210 Purchase response, declined | 3, 4, 7, 11, 12, 13, 37, 39, 41, 42, 49 | 55 |
-| 0400 Reversal request | 2, 3, 4, 7, 11, 12, 13, 22, 25, 41, 42, 49, 90 | 14, 37 |
-| 0410 Reversal response | 3, 4, 7, 11, 12, 13, 37, 39, 41, 42, 49 | none |
-
-Why these and not others:
-
-- **DE 2 and 14 are not in the 0200.** With a chip card the PAN and expiry are inside DE 35 (track 2 equivalent). A reversal has no track data, so it carries DE 2 (+ 14).
-- **DE 37, 38, 39 are never in a request.** The host creates the RRN, auth ID and response code.
-- **DE 18 (MCC), 32 (acquirer ID), 43 (merchant name/location) are not sent by the terminal.** The acquirer adds them from the merchant profile before forwarding to the scheme.
-- **DE 7 is UTC; DE 12 / 13 are the terminal's local time** (Dhaka, UTC+6), so they differ.
-- **DE 22 = `051`:** 05 chip, last digit 1 = PIN pad present.
-- **DE 52 is optional:** present only when the cardholder typed a PIN. It is a real ISO format-0 block, 3DES-encrypted; the host decrypts and checks it.
-- **DE 55** carries 17 EMV tags (ARQC 9F26, CID 9F27, IAD 9F10, UN 9F37, ATC 9F36, TVR 95, date 9A, type 9C, amount 9F02, currency 5F2A, AIP 82, country 9F1A, other amount 9F03, terminal caps 9F33, CVM results 9F34, terminal type 9F35, AID 84). An approval answers with tag 91 (issuer authentication data).
-- **Currency 050 (BDT), 2 decimals:** `000000125000` is 1,250.00.
-
-Deliberately left out: DE 64/128 (MAC, depends on your host's key management), network management (0800/0810), swipe, contactless, manual entry, refunds, settlement, private data fields (48, 60-63, 120+). Add them to `internal/handlers/iso8583/spec` when your device sends them.
-
-## What is real and what is assumed
-
-- **Real:** the field choices above, the reversal mechanics, EMV tag content and structure, the PIN block format.
-- **Assumed:** the byte-level dialect. The TITP spec is not public. `internal/handlers/iso8583/spec` uses moov's stock `specs.Spec87ASCII` (ASCII fields, hex bitmap, LL/LLL prefixes, DE 52 as 16 hex chars, DE 55 as a hex string). The length header is a 2-byte big-endian prefix in `internal/infrastructure`. To match the real device: capture one request with `tcpdump` / Wireshark, copy `Spec87ASCII` into `internal/handlers/iso8583/spec`, edit the fields that differ, point `spec.Spec` at it, and adjust `Framing` in `internal/infrastructure/frame.go` (or use moov's `network` package headers). Nothing outside those two packages changes.
-- **Fake:** the ARQC is random bytes, the issuer response is a hash, the PIN key is a public demo key. Never use real cards or real keys.
-
-## Test cards
-
-| PAN | Result |
-|---|---|
-| 4111111111111111 Visa, 5555555555554444 Mastercard | approve |
-| 4000000000000002 | 05 do not honour |
-| 4000000000000341 | approve, but the host's reply is lost |
-
-PIN `1234` is correct, any other → `55`. Bad Luhn → `14`, expired → `54`.
-# pos-payment-iso8583
+The host accepts terminal `POS00001` and merchant `MERCHANT0000001`. The card is the Visa test PAN `4111111111111111`, tapped (DE 22 = `071`). Currency is `050`.
