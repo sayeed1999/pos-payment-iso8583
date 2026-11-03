@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/infrastructure"
 	"titp-poc/internal/transport/iso8583/spec"
+	"titp-poc/logger"
 )
 
 // Client is the terminal side of the socket.
@@ -61,19 +61,19 @@ func (c *Client) Exchange(ctx context.Context, req transaction.Request) (transac
 	}
 	defer func() {
 		if derr := c.conn.SetDeadline(time.Time{}); derr != nil {
-			infrastructure.Error(ctx, "clear deadline failed", "error", derr)
+			logger.Error(ctx, "clear deadline failed", "error", derr)
 		}
 	}()
 	if _, err := c.conn.Write(frame); err != nil {
 		return transaction.Reply{}, err
 	}
-	infrastructure.Info(ctx, "request sent", "mti", req.MTI, "stan", req.STAN, "processing_code", req.ProcessingCode, "amount", req.Amount)
+	logger.Info(ctx, "request sent", "mti", req.MTI, "stan", req.STAN, "processing_code", req.ProcessingCode, "amount", req.Amount)
 
 	body, err := Read(c.conn, maxFrame)
 	if err != nil {
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() {
-			infrastructure.Error(ctx, "host timeout", "mti", req.MTI, "stan", req.STAN, "error", err)
+			logger.Error(ctx, "host timeout", "mti", req.MTI, "stan", req.STAN, "error", err)
 			return transaction.Reply{}, transaction.ErrTimeout
 		}
 		return transaction.Reply{}, err
@@ -90,6 +90,6 @@ func (c *Client) Exchange(ctx context.Context, req transaction.Request) (transac
 	if reply.MTI != want || reply.STAN != req.STAN {
 		return transaction.Reply{}, fmt.Errorf("response MTI %s STAN %s does not match request MTI %s STAN %s", reply.MTI, reply.STAN, req.MTI, req.STAN)
 	}
-	infrastructure.Info(ctx, "response received", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC, "rrn", reply.RRN)
+	logger.Info(ctx, "response received", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC, "rrn", reply.RRN)
 	return reply, nil
 }

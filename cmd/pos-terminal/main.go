@@ -9,8 +9,8 @@ import (
 
 	"titp-poc/config"
 	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/infrastructure"
 	"titp-poc/internal/transport/iso8583"
+	"titp-poc/logger"
 )
 
 func main() {
@@ -35,19 +35,19 @@ func main() {
 
 	client := iso8583.NewClient(cfg.HostAddr, cfg.Timeout)
 	if err := client.Dial(); err != nil {
-		infrastructure.Error(context.Background(), "dial failed", "addr", cfg.HostAddr, "error", err)
+		logger.Error(context.Background(), "dial failed", "addr", cfg.HostAddr, "error", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err := client.Close(); err != nil {
-			infrastructure.Error(context.Background(), "close failed", "error", err)
+			logger.Error(context.Background(), "close failed", "error", err)
 		}
 	}()
 
 	term := transaction.NewTerminal(client, cfg.TerminalID, cfg.MerchantID, cfg.Currency)
-	ctx := infrastructure.WithCorrelationID(context.Background(), infrastructure.NewCorrelationID())
+	ctx := logger.WithCorrelationID(context.Background(), logger.NewCorrelationID())
 	if err := run(ctx, term, *amount, *doVoid, *doReverse); err != nil {
-		infrastructure.Error(ctx, "terminal failed", "error", err)
+		logger.Error(ctx, "terminal failed", "error", err)
 		os.Exit(1)
 	}
 }

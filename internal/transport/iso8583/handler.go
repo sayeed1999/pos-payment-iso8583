@@ -11,8 +11,8 @@ import (
 
 	"titp-poc/internal/application/transaction"
 	"titp-poc/internal/domain"
-	"titp-poc/internal/infrastructure"
 	"titp-poc/internal/transport/iso8583/spec"
+	"titp-poc/logger"
 )
 
 // Server reads one ISO 8583 frame per request and answers on the same connection.
@@ -32,10 +32,10 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		conn, err := ln.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
-				infrastructure.Info(ctx, "listener closed")
+				logger.Info(ctx, "listener closed")
 				return err
 			}
-			infrastructure.Error(ctx, "accept failed", "error", err)
+			logger.Error(ctx, "accept failed", "error", err)
 			continue
 		}
 		go s.serveConn(conn)
@@ -46,22 +46,22 @@ func (s *Server) serveConn(conn net.Conn) {
 	peer := conn.RemoteAddr().String()
 	defer func() {
 		if rec := recover(); rec != nil {
-			infrastructure.Error(context.Background(), "connection goroutine recovered", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
+			logger.Error(context.Background(), "connection goroutine recovered", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 		}
 	}()
 	defer func() {
 		if err := conn.Close(); err != nil {
-			infrastructure.Error(context.Background(), "close connection failed", "peer", peer, "error", err)
+			logger.Error(context.Background(), "close connection failed", "peer", peer, "error", err)
 		}
 	}()
 
-	infrastructure.Info(context.Background(), "terminal connected", "peer", peer)
-	defer infrastructure.Info(context.Background(), "terminal disconnected", "peer", peer)
+	logger.Info(context.Background(), "terminal connected", "peer", peer)
+	defer logger.Info(context.Background(), "terminal disconnected", "peer", peer)
 
 	for {
 		if err := s.one(conn, peer); err != nil {
 			if !errors.Is(err, io.EOF) {
-				infrastructure.Error(context.Background(), "connection ended", "peer", peer, "error", err)
+				logger.Error(context.Background(), "connection ended", "peer", peer, "error", err)
 			}
 			return
 		}
@@ -72,7 +72,7 @@ func (s *Server) one(conn net.Conn, peer string) (err error) {
 	ctx := context.Background()
 	defer func() {
 		if rec := recover(); rec != nil {
-			infrastructure.Error(ctx, "recovered panic, continuing connection", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
+			logger.Error(ctx, "recovered panic, continuing connection", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 			err = nil
 		}
 	}()
@@ -84,23 +84,23 @@ func (s *Server) one(conn net.Conn, peer string) (err error) {
 	if err != nil {
 		return err
 	}
-	ctx = infrastructure.WithCorrelationID(ctx, infrastructure.NewCorrelationID())
-	infrastructure.Info(ctx, "frame received", "peer", peer, "bytes", len(body))
+	ctx = logger.WithCorrelationID(ctx, logger.NewCorrelationID())
+	logger.Info(ctx, "frame received", "peer", peer, "bytes", len(body))
 
 	msg, err := spec.Unpack(body)
 	if err != nil {
-		infrastructure.Error(ctx, "cannot parse iso8583", "error", err, "bytes", len(body))
+		logger.Error(ctx, "cannot parse iso8583", "error", err, "bytes", len(body))
 		return err
 	}
 	req, err := parseRequest(msg)
 	if err != nil {
-		infrastructure.Error(ctx, "rejected request", "mti", req.MTI, "error", err)
+		logger.Error(ctx, "rejected request", "mti", req.MTI, "error", err)
 		if responseMTI(req.MTI) == "" {
 			return err
 		}
 		return s.reject(ctx, conn, req)
 	}
-	infrastructure.Info(ctx, "request accepted", "mti", req.MTI, "processing_code", req.ProcessingCode, "stan", req.STAN, "amount", req.Amount, "terminal_id", req.TerminalID, "merchant_id", req.MerchantID)
+	logger.Info(ctx, "request accepted", "mti", req.MTI, "processing_code", req.ProcessingCode, "stan", req.STAN, "amount", req.Amount, "terminal_id", req.TerminalID, "merchant_id", req.MerchantID)
 
 	var reply transaction.Reply
 	switch req.MTI {
@@ -114,7 +114,7 @@ func (s *Server) one(conn net.Conn, peer string) (err error) {
 	// TODO(poc): do not skip the write. Silent is how amounts 500 and 400 pretend
 	// the host timed out. The decision above is still stored; only the bytes are dropped.
 	if reply.Silent {
-		infrastructure.Info(ctx, "response withheld to simulate host timeout", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC)
+		logger.Info(ctx, "response withheld to simulate host timeout", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC)
 		return nil
 	}
 	return s.write(ctx, conn, reply)
@@ -135,7 +135,7 @@ func (s *Server) reject(ctx context.Context, conn net.Conn, req transaction.Requ
 		MerchantID:     fallback(req.MerchantID, "000000000000000"),
 		Currency:       fallback(req.Currency, "000"),
 	}
-	infrastructure.Error(ctx, "sending format error", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC)
+	logger.Error(ctx, "sending format error", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC)
 	return s.write(ctx, conn, reply)
 }
 
@@ -154,6 +154,6 @@ func (s *Server) write(ctx context.Context, conn net.Conn, reply transaction.Rep
 	if _, err := conn.Write(frame); err != nil {
 		return err
 	}
-	infrastructure.Info(ctx, "response sent", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC, "rrn", reply.RRN)
+	logger.Info(ctx, "response sent", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC, "rrn", reply.RRN)
 	return nil
 }

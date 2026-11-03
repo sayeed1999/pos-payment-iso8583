@@ -7,11 +7,12 @@ import (
 
 	"titp-poc/internal/domain"
 	"titp-poc/internal/infrastructure"
+	"titp-poc/logger"
 )
 
 func TestPurchaseDecisions(t *testing.T) {
 	svc := NewService(infrastructure.NewDirectory())
-	ctx := infrastructure.WithCorrelationID(context.Background(), "purchase")
+	ctx := logger.WithCorrelationID(context.Background(), "purchase")
 	cases := []struct {
 		amount int64
 		rc     string

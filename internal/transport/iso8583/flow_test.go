@@ -11,6 +11,7 @@ import (
 
 	"titp-poc/internal/application/transaction"
 	"titp-poc/internal/infrastructure"
+	"titp-poc/logger"
 )
 
 func TestPurchaseAmounts(t *testing.T) {
@@ -106,7 +107,7 @@ func TestTwoConnections(t *testing.T) {
 				}
 			}()
 			term := transaction.NewTerminal(client, "POS00001", "MERCHANT0000001", "050")
-			ctx := infrastructure.WithCorrelationID(context.Background(), infrastructure.NewCorrelationID())
+			ctx := logger.WithCorrelationID(context.Background(), logger.NewCorrelationID())
 			out, err := term.Purchase(ctx, 100000)
 			if err != nil {
 				errc <- err

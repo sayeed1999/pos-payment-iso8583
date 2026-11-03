@@ -30,7 +30,8 @@ config
 internal/transport/iso8583          TCP frames, parse, handler, client
 internal/transport/iso8583/spec     moov Spec87ASCII
 internal/application/transaction    purchase, void, reversal
-internal/infrastructure             terminal and merchant records, logs
+logger                              logs and correlation id
+internal/infrastructure             terminal and merchant records
 internal/domain                     processing codes, response codes
 ```
 

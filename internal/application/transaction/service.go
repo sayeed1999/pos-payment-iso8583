@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"titp-poc/internal/domain"
-	"titp-poc/internal/infrastructure"
+	"titp-poc/logger"
 )
 
 // Directory is the terminal and merchant lookup. The infrastructure store
@@ -66,7 +66,7 @@ func (s *Service) Authorize(ctx context.Context, req Request) Reply {
 	case domain.ProcPurchase:
 		return s.purchase(ctx, req)
 	default:
-		infrastructure.Error(ctx, "unknown processing code", "processing_code", req.ProcessingCode)
+		logger.Error(ctx, "unknown processing code", "processing_code", req.ProcessingCode)
 		return s.echo(req, "0210", domain.RCFormat, false)
 	}
 }
@@ -84,7 +84,7 @@ func (s *Service) Reverse(ctx context.Context, req Request) Reply {
 	if prev, ok := s.reversals[key]; ok {
 		prev.Silent = false
 		s.reversals[key] = prev
-		infrastructure.Info(ctx, "duplicate reversal, replaying", "stan", req.STAN, "rc", prev.RC, "rrn", prev.RRN)
+		logger.Info(ctx, "duplicate reversal, replaying", "stan", req.STAN, "rc", prev.RC, "rrn", prev.RRN)
 		return prev
 	}
 
@@ -92,21 +92,21 @@ func (s *Service) Reverse(ctx context.Context, req Request) Reply {
 	orig, found := s.sales[origKey]
 	var originalRRN string
 	if !found {
-		infrastructure.Info(ctx, "original sale not found", "original_stan", req.OriginalSTAN)
+		logger.Info(ctx, "original sale not found", "original_stan", req.OriginalSTAN)
 	} else {
 		originalRRN = orig.reply.RRN
 		if orig.reply.Amount != req.Amount {
-			infrastructure.Error(ctx, "reversal amount differs from original", "original_amount", orig.reply.Amount, "reversal_amount", req.Amount)
+			logger.Error(ctx, "reversal amount differs from original", "original_amount", orig.reply.Amount, "reversal_amount", req.Amount)
 		}
 		switch {
 		case orig.reversed:
-			infrastructure.Info(ctx, "original sale already reversed", "original_stan", req.OriginalSTAN)
+			logger.Info(ctx, "original sale already reversed", "original_stan", req.OriginalSTAN)
 		case orig.reply.RC != domain.RCApproved:
-			infrastructure.Info(ctx, "original sale was not approved", "original_stan", req.OriginalSTAN, "rc", orig.reply.RC)
+			logger.Info(ctx, "original sale was not approved", "original_stan", req.OriginalSTAN, "rc", orig.reply.RC)
 		default:
 			orig.reversed = true
 			s.sales[origKey] = orig
-			infrastructure.Info(ctx, "reversal released hold", "original_stan", req.OriginalSTAN, "amount", orig.reply.Amount, "auth_id", orig.reply.AuthID)
+			logger.Info(ctx, "reversal released hold", "original_stan", req.OriginalSTAN, "amount", orig.reply.Amount, "auth_id", orig.reply.AuthID)
 		}
 	}
 
@@ -122,7 +122,7 @@ func (s *Service) Reverse(ctx context.Context, req Request) Reply {
 		reply.RRN = originalRRN
 	}
 	s.reversals[key] = reply
-	infrastructure.Info(ctx, "reversal decided", "stan", req.STAN, "rc", reply.RC, "rrn", reply.RRN, "withhold", silent)
+	logger.Info(ctx, "reversal decided", "stan", req.STAN, "rc", reply.RC, "rrn", reply.RRN, "withhold", silent)
 	return reply
 }
 
@@ -130,17 +130,17 @@ func (s *Service) Reverse(ctx context.Context, req Request) Reply {
 func (s *Service) parties(ctx context.Context, req Request) (string, bool) {
 	name, active, found := s.dir.Terminal(req.TerminalID)
 	if !found || !active {
-		infrastructure.Error(ctx, "terminal rejected", "terminal_id", req.TerminalID, "found", found, "active", active)
+		logger.Error(ctx, "terminal rejected", "terminal_id", req.TerminalID, "found", found, "active", active)
 		return domain.RCTerminal, false
 	}
-	infrastructure.Info(ctx, "terminal accepted", "terminal_id", req.TerminalID, "terminal_name", name)
+	logger.Info(ctx, "terminal accepted", "terminal_id", req.TerminalID, "terminal_name", name)
 
 	name, active, found = s.dir.Merchant(req.MerchantID)
 	if !found || !active {
-		infrastructure.Error(ctx, "merchant rejected", "merchant_id", req.MerchantID, "found", found, "active", active)
+		logger.Error(ctx, "merchant rejected", "merchant_id", req.MerchantID, "found", found, "active", active)
 		return domain.RCMerchant, false
 	}
-	infrastructure.Info(ctx, "merchant accepted", "merchant_id", req.MerchantID, "merchant_name", name)
+	logger.Info(ctx, "merchant accepted", "merchant_id", req.MerchantID, "merchant_name", name)
 	return "", true
 }
 
@@ -148,7 +148,7 @@ func (s *Service) parties(ctx context.Context, req Request) (string, bool) {
 func (s *Service) purchase(ctx context.Context, req Request) Reply {
 	key := saleKey(req.TerminalID, req.STAN, req.Transmission)
 	if rec, ok := s.sales[key]; ok {
-		infrastructure.Info(ctx, "duplicate purchase, replaying", "stan", req.STAN, "rc", rec.reply.RC)
+		logger.Info(ctx, "duplicate purchase, replaying", "stan", req.STAN, "rc", rec.reply.RC)
 		return rec.reply
 	}
 	// TODO(poc): stand-in for the issuer. The amount picks the outcome so the
@@ -172,7 +172,7 @@ func (s *Service) purchase(ctx context.Context, req Request) Reply {
 	}
 	s.sales[key] = sale{reply: reply}
 	s.byRRN[reply.RRN] = key
-	infrastructure.Info(ctx, "purchase decided", "stan", req.STAN, "amount", req.Amount, "rc", rc, "rrn", reply.RRN, "withhold", withhold)
+	logger.Info(ctx, "purchase decided", "stan", req.STAN, "amount", req.Amount, "rc", rc, "rrn", reply.RRN, "withhold", withhold)
 	return reply
 }
 
@@ -180,22 +180,22 @@ func (s *Service) purchase(ctx context.Context, req Request) Reply {
 func (s *Service) void(ctx context.Context, req Request) Reply {
 	key := saleKey(req.TerminalID, req.STAN, req.Transmission)
 	if prev, ok := s.voids[key]; ok {
-		infrastructure.Info(ctx, "duplicate void, replaying", "stan", req.STAN, "rc", prev.RC)
+		logger.Info(ctx, "duplicate void, replaying", "stan", req.STAN, "rc", prev.RC)
 		return prev
 	}
 	if origKey, ok := s.byRRN[req.RRN]; ok {
 		rec := s.sales[origKey]
-		infrastructure.Info(ctx, "void matched sale", "rrn", req.RRN, "original_stan", rec.reply.STAN, "original_rc", rec.reply.RC)
+		logger.Info(ctx, "void matched sale", "rrn", req.RRN, "original_stan", rec.reply.STAN, "original_rc", rec.reply.RC)
 	} else {
 		// TODO(poc): an unmatched void is approved so `-void` always prints RC 00.
 		// Decline it once the host requires a live approved sale with the same
 		// terminal, amount, and RRN.
-		infrastructure.Info(ctx, "void has no matching sale, approving anyway", "rrn", req.RRN)
+		logger.Info(ctx, "void has no matching sale, approving anyway", "rrn", req.RRN)
 	}
 	reply := s.echo(req, "0210", domain.RCApproved, false)
 	reply.AuthID = s.nextAuth()
 	s.voids[key] = reply
-	infrastructure.Info(ctx, "void approved", "stan", req.STAN, "rc", reply.RC, "rrn", reply.RRN)
+	logger.Info(ctx, "void approved", "stan", req.STAN, "rc", reply.RC, "rrn", reply.RRN)
 	return reply
 }
 

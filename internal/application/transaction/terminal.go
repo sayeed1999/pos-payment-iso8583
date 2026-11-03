@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"titp-poc/internal/domain"
-	"titp-poc/internal/infrastructure"
+	"titp-poc/logger"
 )
 
 // Terminal is the mock POS. It builds the business request. The Wire sends it.
@@ -71,17 +71,17 @@ func (t *Terminal) base(mti, proc string, amount int64) Request {
 }
 
 func ensure(ctx context.Context) context.Context {
-	if infrastructure.CorrelationID(ctx) != "" {
+	if logger.CorrelationID(ctx) != "" {
 		return ctx
 	}
-	return infrastructure.WithCorrelationID(ctx, infrastructure.NewCorrelationID())
+	return logger.WithCorrelationID(ctx, logger.NewCorrelationID())
 }
 
 // Purchase sends a 0200 with processing code 000000.
 func (t *Terminal) Purchase(ctx context.Context, amount int64) (Outcome, error) {
 	ctx = ensure(ctx)
 	req := t.base("0200", domain.ProcPurchase, amount)
-	infrastructure.Info(ctx, "sending purchase", "stan", req.STAN, "amount", amount, "terminal_id", req.TerminalID)
+	logger.Info(ctx, "sending purchase", "stan", req.STAN, "amount", amount, "terminal_id", req.TerminalID)
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
@@ -91,7 +91,7 @@ func (t *Terminal) Void(ctx context.Context, sale Outcome) (Outcome, error) {
 	ctx = ensure(ctx)
 	req := t.base("0200", domain.ProcVoid, sale.Request.Amount)
 	req.RRN = sale.Reply.RRN
-	infrastructure.Info(ctx, "sending void", "stan", req.STAN, "rrn", req.RRN, "amount", req.Amount)
+	logger.Info(ctx, "sending void", "stan", req.STAN, "rrn", req.RRN, "amount", req.Amount)
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
@@ -103,7 +103,7 @@ func (t *Terminal) Reverse(ctx context.Context, original Request) (Outcome, erro
 	req.OriginalMTI = original.MTI
 	req.OriginalSTAN = original.STAN
 	req.OriginalTransmission = original.Transmission
-	infrastructure.Info(ctx, "sending reversal", "stan", req.STAN, "original_stan", original.STAN, "amount", req.Amount)
+	logger.Info(ctx, "sending reversal", "stan", req.STAN, "original_stan", original.STAN, "amount", req.Amount)
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
