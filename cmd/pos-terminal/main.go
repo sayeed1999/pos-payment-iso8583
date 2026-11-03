@@ -28,6 +28,7 @@ func main() {
 	flag.DurationVar(&cfg.Timeout, "timeout", cfg.Timeout, "how long to wait for a host response")
 	flag.Parse()
 
+	ctx := logger.WithServiceName(context.Background(), cfg.ServiceName)
 	if *doVoid && *doReverse {
 		fmt.Fprintln(os.Stderr, "pass -void or -reverse, not both")
 		os.Exit(2)
@@ -35,17 +36,17 @@ func main() {
 
 	client := iso8583.NewClient(cfg.HostAddr, cfg.Timeout)
 	if err := client.Dial(); err != nil {
-		logger.Error(context.Background(), "dial failed", "addr", cfg.HostAddr, "error", err)
+		logger.Error(ctx, "dial failed", "addr", cfg.HostAddr, "error", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err := client.Close(); err != nil {
-			logger.Error(context.Background(), "close failed", "error", err)
+			logger.Error(ctx, "close failed", "error", err)
 		}
 	}()
 
 	term := transaction.NewTerminal(client, cfg.TerminalID, cfg.MerchantID, cfg.Currency)
-	ctx := logger.WithCorrelationID(context.Background(), logger.NewCorrelationID())
+	ctx = logger.WithCorrelationID(ctx, logger.NewCorrelationID())
 	if err := run(ctx, term, *amount, *doVoid, *doReverse); err != nil {
 		logger.Error(ctx, "terminal failed", "error", err)
 		os.Exit(1)

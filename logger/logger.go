@@ -10,9 +10,22 @@ import (
 )
 
 type correlationKey struct{}
+type serviceKey struct{}
 
 func WithCorrelationID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, correlationKey{}, id)
+}
+
+func WithServiceName(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, serviceKey{}, name)
+}
+
+func ServiceName(ctx context.Context) string {
+	name, ok := ctx.Value(serviceKey{}).(string)
+	if !ok {
+		return ""
+	}
+	return name
 }
 
 func CorrelationID(ctx context.Context) string {
@@ -40,5 +53,8 @@ func Error(ctx context.Context, msg string, args ...any) {
 }
 
 func withID(ctx context.Context, args []any) []any {
-	return append([]any{"correlation_id", CorrelationID(ctx)}, args...)
+	return append([]any{
+		"service_name", ServiceName(ctx),
+		"correlation_id", CorrelationID(ctx),
+	}, args...)
 }

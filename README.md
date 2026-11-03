@@ -19,11 +19,14 @@ Void uses processing code `020000`. In ISO 8583 the transaction type `02` is an 
 
 RC 56 is what this PoC calls insufficient funds. The ISO 8583 standard uses 51 for that.
 
+
+## Coding Guidelines
+
 Each host connection runs in its own goroutine. A panic is recovered and does not stop the listener or other connections. A connection pool is out of scope.
 
-Logs carry `correlation_id` for one request inside a process. STAN is the id that appears on both sides of the socket.
+Logs carry `service_name` (`host` or `terminal`, from config) and `correlation_id` for one request inside that process. STAN is the id that appears on both sides of the socket.
 
-```
+```sh
 cmd/host
 cmd/pos-terminal
 config

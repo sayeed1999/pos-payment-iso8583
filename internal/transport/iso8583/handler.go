@@ -38,38 +38,37 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 			logger.Error(ctx, "accept failed", "error", err)
 			continue
 		}
-		go s.serveConn(conn)
+		go s.serveConn(ctx, conn)
 	}
 }
 
-func (s *Server) serveConn(conn net.Conn) {
+func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	peer := conn.RemoteAddr().String()
 	defer func() {
 		if rec := recover(); rec != nil {
-			logger.Error(context.Background(), "connection goroutine recovered", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
+			logger.Error(ctx, "connection goroutine recovered", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 		}
 	}()
 	defer func() {
 		if err := conn.Close(); err != nil {
-			logger.Error(context.Background(), "close connection failed", "peer", peer, "error", err)
+			logger.Error(ctx, "close connection failed", "peer", peer, "error", err)
 		}
 	}()
 
-	logger.Info(context.Background(), "terminal connected", "peer", peer)
-	defer logger.Info(context.Background(), "terminal disconnected", "peer", peer)
+	logger.Info(ctx, "terminal connected", "peer", peer)
+	defer logger.Info(ctx, "terminal disconnected", "peer", peer)
 
 	for {
-		if err := s.one(conn, peer); err != nil {
+		if err := s.one(ctx, conn, peer); err != nil {
 			if !errors.Is(err, io.EOF) {
-				logger.Error(context.Background(), "connection ended", "peer", peer, "error", err)
+				logger.Error(ctx, "connection ended", "peer", peer, "error", err)
 			}
 			return
 		}
 	}
 }
 
-func (s *Server) one(conn net.Conn, peer string) (err error) {
-	ctx := context.Background()
+func (s *Server) one(ctx context.Context, conn net.Conn, peer string) (err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			logger.Error(ctx, "recovered panic, continuing connection", "peer", peer, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
