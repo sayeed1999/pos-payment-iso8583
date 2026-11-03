@@ -18,7 +18,7 @@ func main() {
 	flag.StringVar(&cfg.ListenAddr, "addr", cfg.ListenAddr, "TCP listen address")
 	flag.Parse()
 
-	ctx := logger.WithServiceName(context.Background(), cfg.ServiceName)
+	ctx := context.Background()
 	ln, err := net.Listen("tcp", cfg.ListenAddr)
 	if err != nil {
 		logger.Error(ctx, "listen failed", "error", err)

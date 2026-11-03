@@ -2,7 +2,6 @@ package transaction
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 )
 
@@ -26,11 +25,10 @@ type Request struct {
 	OriginalTransmission string `json:"original_transmission,omitempty"`
 }
 
-func (r Request) MarshalJSON() ([]byte, error) {
-	type alias Request
-	cp := alias(r)
-	cp.PAN = maskPAN(cp.PAN)
-	return json.Marshal(cp)
+// Masked is a copy safe to log. The logger does not know which fields are card data.
+func (r Request) Masked() Request {
+	r.PAN = maskPAN(r.PAN)
+	return r
 }
 
 func maskPAN(pan string) string {

@@ -107,7 +107,12 @@ func TestTwoConnections(t *testing.T) {
 				}
 			}()
 			term := transaction.NewTerminal(client, "POS00001", "MERCHANT0000001", "050")
-			ctx := logger.WithCorrelationID(context.Background(), logger.NewCorrelationID())
+			id, err := logger.NewCorrelationID()
+			if err != nil {
+				errc <- err
+				return
+			}
+			ctx := logger.WithCorrelationID(context.Background(), id)
 			out, err := term.Purchase(ctx, 100000)
 			if err != nil {
 				errc <- err

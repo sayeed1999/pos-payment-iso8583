@@ -70,40 +70,53 @@ func (t *Terminal) base(mti, proc string, amount int64) Request {
 	}
 }
 
-func ensure(ctx context.Context) context.Context {
+func ensure(ctx context.Context) (context.Context, error) {
 	if logger.CorrelationID(ctx) != "" {
-		return ctx
+		return ctx, nil
 	}
-	return logger.WithCorrelationID(ctx, logger.NewCorrelationID())
+	id, err := logger.NewCorrelationID()
+	if err != nil {
+		return ctx, err
+	}
+	return logger.WithCorrelationID(ctx, id), nil
 }
 
 // Purchase sends a 0200 with processing code 000000.
 func (t *Terminal) Purchase(ctx context.Context, amount int64) (Outcome, error) {
-	ctx = ensure(ctx)
+	ctx, err := ensure(ctx)
+	if err != nil {
+		return Outcome{}, err
+	}
 	req := t.base("0200", domain.ProcPurchase, amount)
-	logger.Info(ctx, "sending purchase", "payload", req)
+	logger.Info(ctx, "sending purchase", "payload", req.Masked())
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
 
 // Void sends a 0200 with processing code 020000 for a sale the terminal completed.
 func (t *Terminal) Void(ctx context.Context, sale Outcome) (Outcome, error) {
-	ctx = ensure(ctx)
+	ctx, err := ensure(ctx)
+	if err != nil {
+		return Outcome{}, err
+	}
 	req := t.base("0200", domain.ProcVoid, sale.Request.Amount)
 	req.RRN = sale.Reply.RRN
-	logger.Info(ctx, "sending void", "payload", req)
+	logger.Info(ctx, "sending void", "payload", req.Masked())
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
 
 // Reverse sends a new 0400 that points at original through DE 90.
 func (t *Terminal) Reverse(ctx context.Context, original Request) (Outcome, error) {
-	ctx = ensure(ctx)
+	ctx, err := ensure(ctx)
+	if err != nil {
+		return Outcome{}, err
+	}
 	req := t.base("0400", original.ProcessingCode, original.Amount)
 	req.OriginalMTI = original.MTI
 	req.OriginalSTAN = original.STAN
 	req.OriginalTransmission = original.Transmission
-	logger.Info(ctx, "sending reversal", "payload", req)
+	logger.Info(ctx, "sending reversal", "payload", req.Masked())
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }

@@ -83,7 +83,11 @@ func (s *Server) one(ctx context.Context, conn net.Conn, peer string) (err error
 	if err != nil {
 		return err
 	}
-	ctx = logger.WithCorrelationID(ctx, logger.NewCorrelationID())
+	id, err := logger.NewCorrelationID()
+	if err != nil {
+		return err
+	}
+	ctx = logger.WithCorrelationID(ctx, id)
 	logger.Info(ctx, "frame received", "peer", peer, "bytes", len(body))
 
 	msg, err := spec.Unpack(body)
@@ -99,7 +103,7 @@ func (s *Server) one(ctx context.Context, conn net.Conn, peer string) (err error
 		}
 		return s.reject(ctx, conn, req)
 	}
-	logger.Info(ctx, "request accepted", "payload", req)
+	logger.Info(ctx, "request accepted", "payload", req.Masked())
 
 	var reply transaction.Reply
 	switch req.MTI {

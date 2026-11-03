@@ -2,9 +2,7 @@ package transaction
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
 	"pos-payment-poc/internal/domain"
@@ -105,17 +103,14 @@ func TestUnknownTerminal(t *testing.T) {
 	}
 }
 
-func TestRequestJSONMasksPAN(t *testing.T) {
-	b, err := json.Marshal(purchaseReq(100000, 1))
-	if err != nil {
-		t.Fatal(err)
+func TestRequestMaskedHidesPAN(t *testing.T) {
+	req := purchaseReq(100000, 1)
+	got := req.Masked()
+	if req.PAN != "4111111111111111" {
+		t.Fatalf("original pan %s", req.PAN)
 	}
-	got := string(b)
-	if strings.Contains(got, "4111111111111111") {
-		t.Fatalf("full PAN in JSON: %s", got)
-	}
-	if !strings.Contains(got, "411111******1111") {
-		t.Fatalf("masked PAN missing: %s", got)
+	if got.PAN != "411111******1111" {
+		t.Fatalf("masked pan %s", got.PAN)
 	}
 }
 

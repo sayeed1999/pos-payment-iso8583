@@ -67,7 +67,7 @@ func (c *Client) Exchange(ctx context.Context, req transaction.Request) (transac
 	if _, err := c.conn.Write(frame); err != nil {
 		return transaction.Reply{}, err
 	}
-	logger.Info(ctx, "request sent", "payload", req)
+	logger.Info(ctx, "request sent", "payload", req.Masked())
 
 	body, err := Read(c.conn, maxFrame)
 	if err != nil {

@@ -24,7 +24,7 @@ RC 56 is what this PoC calls insufficient funds. The ISO 8583 standard uses 51 f
 
 Each host connection runs in its own goroutine. A panic is recovered and does not stop the listener or other connections. A connection pool is out of scope.
 
-Logs carry `service_name` (`host` or `terminal`, from config) and `correlation_id` for one request inside that process. STAN is the id that appears on both sides of the socket.
+Logs are one JSON object per line. `correlation_id` is one request inside that process. STAN is the id that appears on both sides of the socket. A logged payment message is masked before it reaches the logger.
 
 ```sh
 cmd/host

@@ -28,7 +28,7 @@ func main() {
 	flag.DurationVar(&cfg.Timeout, "timeout", cfg.Timeout, "how long to wait for a host response")
 	flag.Parse()
 
-	ctx := logger.WithServiceName(context.Background(), cfg.ServiceName)
+	ctx := context.Background()
 	if *doVoid && *doReverse {
 		fmt.Fprintln(os.Stderr, "pass -void or -reverse, not both")
 		os.Exit(2)
@@ -46,7 +46,12 @@ func main() {
 	}()
 
 	term := transaction.NewTerminal(client, cfg.TerminalID, cfg.MerchantID, cfg.Currency)
-	ctx = logger.WithCorrelationID(ctx, logger.NewCorrelationID())
+	id, err := logger.NewCorrelationID()
+	if err != nil {
+		logger.Error(ctx, "terminal failed", "error", err)
+		os.Exit(1)
+	}
+	ctx = logger.WithCorrelationID(ctx, id)
 	if err := run(ctx, term, *amount, *doVoid, *doReverse); err != nil {
 		logger.Error(ctx, "terminal failed", "error", err)
 		os.Exit(1)
