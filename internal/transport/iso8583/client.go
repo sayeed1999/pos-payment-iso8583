@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
-	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/transport/iso8583/spec"
-	"titp-poc/logger"
+	"pos-payment-poc/internal/application/transaction"
+	"pos-payment-poc/internal/transport/iso8583/spec"
+	"pos-payment-poc/logger"
 )
 
 // Client is the terminal side of the socket.

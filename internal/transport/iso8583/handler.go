@@ -9,10 +9,10 @@ import (
 	"runtime/debug"
 	"time"
 
-	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/domain"
-	"titp-poc/internal/transport/iso8583/spec"
-	"titp-poc/logger"
+	"pos-payment-poc/internal/application/transaction"
+	"pos-payment-poc/internal/domain"
+	"pos-payment-poc/internal/transport/iso8583/spec"
+	"pos-payment-poc/logger"
 )
 
 // Server reads one ISO 8583 frame per request and answers on the same connection.

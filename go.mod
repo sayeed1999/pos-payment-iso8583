@@ -1,4 +1,4 @@
-module titp-poc
+module pos-payment-poc
 
 go 1.26.0
 

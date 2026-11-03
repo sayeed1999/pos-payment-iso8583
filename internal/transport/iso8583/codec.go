@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/domain"
-	"titp-poc/internal/transport/iso8583/spec"
+	"pos-payment-poc/internal/application/transaction"
+	"pos-payment-poc/internal/domain"
+	"pos-payment-poc/internal/transport/iso8583/spec"
 )
 
 func packRequest(req transaction.Request) ([]byte, error) {

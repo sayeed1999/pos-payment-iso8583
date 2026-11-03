@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"titp-poc/internal/domain"
-	"titp-poc/internal/infrastructure"
-	"titp-poc/logger"
+	"pos-payment-poc/internal/domain"
+	"pos-payment-poc/internal/infrastructure"
+	"pos-payment-poc/logger"
 )
 
 func TestPurchaseDecisions(t *testing.T) {

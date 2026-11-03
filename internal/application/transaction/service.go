@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"titp-poc/internal/domain"
-	"titp-poc/logger"
+	"pos-payment-poc/internal/domain"
+	"pos-payment-poc/logger"
 )
 
 // Directory is the terminal and merchant lookup. The infrastructure store

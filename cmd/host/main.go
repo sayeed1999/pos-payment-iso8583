@@ -6,11 +6,11 @@ import (
 	"net"
 	"os"
 
-	"titp-poc/config"
-	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/infrastructure"
-	"titp-poc/internal/transport/iso8583"
-	"titp-poc/logger"
+	"pos-payment-poc/config"
+	"pos-payment-poc/internal/application/transaction"
+	"pos-payment-poc/internal/infrastructure"
+	"pos-payment-poc/internal/transport/iso8583"
+	"pos-payment-poc/logger"
 )
 
 func main() {

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"titp-poc/internal/application/transaction"
-	"titp-poc/internal/infrastructure"
-	"titp-poc/logger"
+	"pos-payment-poc/internal/application/transaction"
+	"pos-payment-poc/internal/infrastructure"
+	"pos-payment-poc/logger"
 )
 
 func TestPurchaseAmounts(t *testing.T) {
