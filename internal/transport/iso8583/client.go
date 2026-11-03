@@ -67,7 +67,7 @@ func (c *Client) Exchange(ctx context.Context, req transaction.Request) (transac
 	if _, err := c.conn.Write(frame); err != nil {
 		return transaction.Reply{}, err
 	}
-	logger.Info(ctx, "request sent", "mti", req.MTI, "stan", req.STAN, "processing_code", req.ProcessingCode, "amount", req.Amount)
+	logger.Info(ctx, "request sent", "payload", req)
 
 	body, err := Read(c.conn, maxFrame)
 	if err != nil {
@@ -90,6 +90,6 @@ func (c *Client) Exchange(ctx context.Context, req transaction.Request) (transac
 	if reply.MTI != want || reply.STAN != req.STAN {
 		return transaction.Reply{}, fmt.Errorf("response MTI %s STAN %s does not match request MTI %s STAN %s", reply.MTI, reply.STAN, req.MTI, req.STAN)
 	}
-	logger.Info(ctx, "response received", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC, "rrn", reply.RRN)
+	logger.Info(ctx, "response received", "payload", reply)
 	return reply, nil
 }

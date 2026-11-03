@@ -81,7 +81,7 @@ func ensure(ctx context.Context) context.Context {
 func (t *Terminal) Purchase(ctx context.Context, amount int64) (Outcome, error) {
 	ctx = ensure(ctx)
 	req := t.base("0200", domain.ProcPurchase, amount)
-	logger.Info(ctx, "sending purchase", "stan", req.STAN, "amount", amount, "terminal_id", req.TerminalID)
+	logger.Info(ctx, "sending purchase", "payload", req)
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
@@ -91,7 +91,7 @@ func (t *Terminal) Void(ctx context.Context, sale Outcome) (Outcome, error) {
 	ctx = ensure(ctx)
 	req := t.base("0200", domain.ProcVoid, sale.Request.Amount)
 	req.RRN = sale.Reply.RRN
-	logger.Info(ctx, "sending void", "stan", req.STAN, "rrn", req.RRN, "amount", req.Amount)
+	logger.Info(ctx, "sending void", "payload", req)
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }
@@ -103,7 +103,7 @@ func (t *Terminal) Reverse(ctx context.Context, original Request) (Outcome, erro
 	req.OriginalMTI = original.MTI
 	req.OriginalSTAN = original.STAN
 	req.OriginalTransmission = original.Transmission
-	logger.Info(ctx, "sending reversal", "stan", req.STAN, "original_stan", original.STAN, "amount", req.Amount)
+	logger.Info(ctx, "sending reversal", "payload", req)
 	reply, err := t.Host.Exchange(ctx, req)
 	return Outcome{Request: req, Reply: reply}, err
 }

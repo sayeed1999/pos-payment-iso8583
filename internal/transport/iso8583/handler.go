@@ -99,7 +99,7 @@ func (s *Server) one(ctx context.Context, conn net.Conn, peer string) (err error
 		}
 		return s.reject(ctx, conn, req)
 	}
-	logger.Info(ctx, "request accepted", "mti", req.MTI, "processing_code", req.ProcessingCode, "stan", req.STAN, "amount", req.Amount, "terminal_id", req.TerminalID, "merchant_id", req.MerchantID)
+	logger.Info(ctx, "request accepted", "payload", req)
 
 	var reply transaction.Reply
 	switch req.MTI {
@@ -113,7 +113,7 @@ func (s *Server) one(ctx context.Context, conn net.Conn, peer string) (err error
 	// TODO(poc): do not skip the write. Silent is how amounts 500 and 400 pretend
 	// the host timed out. The decision above is still stored; only the bytes are dropped.
 	if reply.Silent {
-		logger.Info(ctx, "response withheld to simulate host timeout", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC)
+		logger.Info(ctx, "response withheld to simulate host timeout", "payload", reply)
 		return nil
 	}
 	return s.write(ctx, conn, reply)
@@ -134,7 +134,7 @@ func (s *Server) reject(ctx context.Context, conn net.Conn, req transaction.Requ
 		MerchantID:     fallback(req.MerchantID, "000000000000000"),
 		Currency:       fallback(req.Currency, "000"),
 	}
-	logger.Error(ctx, "sending format error", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC)
+	logger.Error(ctx, "sending format error", "payload", reply)
 	return s.write(ctx, conn, reply)
 }
 
@@ -153,6 +153,6 @@ func (s *Server) write(ctx context.Context, conn net.Conn, reply transaction.Rep
 	if _, err := conn.Write(frame); err != nil {
 		return err
 	}
-	logger.Info(ctx, "response sent", "mti", reply.MTI, "stan", reply.STAN, "rc", reply.RC, "rrn", reply.RRN)
+	logger.Info(ctx, "response sent", "payload", reply)
 	return nil
 }
